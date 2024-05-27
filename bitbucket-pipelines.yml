@@ -1,0 +1,29 @@
+options:
+  max-time: 120
+
+definitions:
+  steps:
+    - step: &deploy
+        name: Deploy in VM
+        deployment: production
+        image: python:3.7  # needed for gcloud (and recommended version as of 09/13/22)
+        script:
+          # Install gcloud
+          - curl -sL https://sdk.cloud.google.com | bash
+          # Add gcloud to PATH
+          - source /root/google-cloud-sdk/path.bash.inc
+          # Install gcloud plugins
+          - gcloud components install gke-gcloud-auth-plugin
+          # Setup authentication
+          - echo $DEPLOY_SERVICE_ACCOUNT | base64 -d > /tmp/gcloud-api-key.json
+          - gcloud auth activate-service-account --key-file /tmp/gcloud-api-key.json
+          # Run a script on the VM to build and start the containers
+          - gcloud compute ssh "crapi-instance" --zone "us-central1-a" --project "dt-crapi" --command "export BITBUCKET_COMMIT=$BITBUCKET_COMMIT; bash -s" < bitbucket-deploy.sh
+
+pipelines:
+  custom:
+    deploy:
+      - step: *deploy
+  branches:
+    release:
+      - step: *deploy
